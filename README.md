@@ -1,1 +1,2 @@
-# Intelligent-of-CPU-Scheduler-Simulator
+# Intelligent-CPU-Scheduler-Simulator
+A CPU Scheduling Simulator is a software that can simulate and display different CPU scheduling algorithms and let users input processes along with important parameters such as arrival time, burst time, and priority. The simulator takes the input and executes it using different scheduling algorithms and shows real-time visualizations along with Gantt charts and measures of performance such as average waiting time and average turn around time.

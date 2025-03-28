@@ -31,25 +31,48 @@ def fcfs_scheduling(processes):
         gantt_chart.append((process.pid, process.start_time, process.completion_time))
     return gantt_chart, processes
 
-def sjf_scheduling(processes):
-    processes.sort(key=lambda p: (p.arrival, p.burst))
+def sjf_preemptive(processes):
     time = 0
     gantt_chart = []
     completed = []
-    while processes:
-        available = [p for p in processes if p.arrival <= time]
+    remaining = processes.copy()
+    while remaining:
+        available = [p for p in remaining if p.arrival <= time]
         if not available:
             time += 1
             continue
-        current = min(available, key=lambda p: p.burst)
-        processes.remove(current)
-        current.start_time = time
-        time += current.burst
-        current.completion_time = time
-        current.turnaround_time = current.completion_time - current.arrival
-        current.waiting_time = current.turnaround_time - current.burst
-        gantt_chart.append((current.pid, current.start_time, current.completion_time))
-        completed.append(current)
+        current = min(available, key=lambda p: p.remaining)
+        current.remaining -= 1
+        gantt_chart.append((current.pid, time, time + 1))
+        if current.remaining == 0:
+            current.completion_time = time + 1
+            current.turnaround_time = current.completion_time - current.arrival
+            current.waiting_time = current.turnaround_time - current.burst
+            completed.append(current)
+            remaining.remove(current)
+        time += 1
+    return gantt_chart, completed
+
+def priority_preemptive(processes):
+    time = 0
+    gantt_chart = []
+    completed = []
+    remaining = processes.copy()
+    while remaining:
+        available = [p for p in remaining if p.arrival <= time]
+        if not available:
+            time += 1
+            continue
+        current = min(available, key=lambda p: p.priority)
+        current.remaining -= 1
+        gantt_chart.append((current.pid, time, time + 1))
+        if current.remaining == 0:
+            current.completion_time = time + 1
+            current.turnaround_time = current.completion_time - current.arrival
+            current.waiting_time = current.turnaround_time - current.burst
+            completed.append(current)
+            remaining.remove(current)
+        time += 1
     return gantt_chart, completed
 
 def round_robin_scheduling(processes, quantum):
@@ -76,28 +99,6 @@ def round_robin_scheduling(processes, quantum):
             completed.append(process)
     return gantt_chart, completed
 
-def priority_scheduling(processes):
-    time = 0
-    gantt_chart = []
-    completed = []
-    remaining = processes.copy()
-    
-    while remaining:
-        available = [p for p in remaining if p.arrival <= time]
-        if not available:
-            time += 1
-            continue
-        current = min(available, key=lambda p: p.priority)
-        remaining.remove(current)
-        current.start_time = time
-        time += current.burst
-        current.completion_time = time
-        current.turnaround_time = current.completion_time - current.arrival
-        current.waiting_time = current.turnaround_time - current.burst
-        gantt_chart.append((current.pid, current.start_time, current.completion_time))
-        completed.append(current)
-    return gantt_chart, completed
-
 @app.route('/')
 def index():
     return render_template('manikanta.html')
@@ -113,29 +114,19 @@ def schedule():
         quantum = data.get('quantum', 2)
         processes_data = data['processes']
         
-        # Validate process data
-        required_fields = ['pid', 'arrival', 'burst']
-        for p in processes_data:
-            if not all(field in p for field in required_fields):
-                return jsonify({"error": "Invalid process data format"}), 400
-            if p['burst'] < 1:
-                return jsonify({"error": f"Burst time for process {p['pid']} must be positive"}), 400
-            if p['arrival'] < 0:
-                return jsonify({"error": f"Arrival time for process {p['pid']} cannot be negative"}), 400
-                
         processes = [Process(p['pid'], p['arrival'], p['burst'], p.get('priority', 0)) 
                     for p in processes_data]
         
         if algorithm == "FCFS":
             gantt_chart, result_processes = fcfs_scheduling(processes)
-        elif algorithm == "SJF":
-            gantt_chart, result_processes = sjf_scheduling(processes)
+        elif algorithm == "SJF-Preemptive":
+            gantt_chart, result_processes = sjf_preemptive(processes)
+        elif algorithm == "Priority-Preemptive":
+            gantt_chart, result_processes = priority_preemptive(processes)
         elif algorithm == "RR":
             if quantum < 1:
                 return jsonify({"error": "Quantum must be positive"}), 400
             gantt_chart, result_processes = round_robin_scheduling(processes, quantum)
-        elif algorithm == "Priority":
-            gantt_chart, result_processes = priority_scheduling(processes)
         else:
             return jsonify({"error": "Invalid algorithm"}), 400
 
@@ -144,7 +135,7 @@ def schedule():
             "avg_waiting_time": sum(p.waiting_time for p in result_processes) / len(result_processes),
             "avg_turnaround_time": sum(p.turnaround_time for p in result_processes) / len(result_processes),
             "processes": [{"pid": p.pid, "waiting_time": p.waiting_time, 
-                          "turnaround_time": p.turnaround_time} for p in result_processes]
+                            "turnaround_time": p.turnaround_time} for p in result_processes]
         }
         return jsonify(result)
         
